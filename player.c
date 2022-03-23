@@ -33,15 +33,15 @@ void Player_SetPlayingSong(SongInfo p){
 }
 
 void Player_ScrobblePlayingSong(){
-    time_t currTime;
-    time(&currTime);
+	time_t currTime;
+	time(&currTime);
 
-    if((int)playingSongStartTime != 0 && Pulse_GetDurationInSecs() > 30 &&
-        (((int)currTime - (int)playingSongStartTime > Pulse_GetDurationInSecs()/2) ||
-        ((int)currTime - (int)playingSongStartTime > 60*4))){
+	 if((int)playingSongStartTime != 0 && Pulse_GetDurationInSecs() > 30 &&
+		 (((int)currTime - (int)playingSongStartTime > Pulse_GetDurationInSecs()/2) ||
+		 ((int)currTime - (int)playingSongStartTime > 60*4))){
 
-        LastFM_ScrobbleTrack(playingSong, playingSongStartTime);
-    }
+		LastFM_ScrobbleTrack(playingSong, playingSongStartTime);
+	 }
 }
 
 void Player_SetEndSongCallback(void *c){

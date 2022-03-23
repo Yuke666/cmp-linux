@@ -13,11 +13,15 @@
 #include "config.h"
 #include "ui.h"
 
-static const char *apiKey = "0ff2b042b54a23f70b25951ca71c2259";
-static const char *secret = "1d68915170787f822c3646271cb482f7";
+static const char *apiKey = "4df0d7f6bb3060463080f7ee62ca839d";
+static const char *secret = "6133b672f1cfed6f8df36f8974e81e7b";
+
+// static const char *apiKey = "0ff2b042b54a23f70b25951ca71c2259";
+// static const char *secret = "1d68915170787f822c3646271cb482f7";
 
 static struct addrinfo *lastfmAddr, *lastfmAddrHttps;
-static int initualized, authenticated;
+static int initualized = 0, authenticated = 0;
+
 
 static struct {
 	char name[1024];
@@ -131,35 +135,29 @@ void LastFM_Authenticate(char *username, char *password){
 
 	SSL_CTX *ctx;
 	SSL *ssl;
-
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
-	if(connect(sock, lastfmAddrHttps->ai_addr, lastfmAddrHttps->ai_addrlen) == 0){
-	
+	int sockssl = socket(AF_INET, SOCK_STREAM, 0);
+	if(connect(sockssl, lastfmAddrHttps->ai_addr, lastfmAddrHttps->ai_addrlen) == 0){
 		SSL_library_init();
 		SSL_load_error_strings();
 
 		ctx = SSL_CTX_new(SSLv23_method());
 		ssl = SSL_new(ctx);
 
-		SSL_set_fd(ssl, sock);
+		SSL_set_fd(ssl, sockssl);
 		SSL_connect(ssl);
-
-		char md5userpass[35];
-		char md5pass[35];
-		char usermd5pass[1024];
-
-		do_md5((unsigned char*)password, md5pass);
-		sprintf(usermd5pass, "%s%s", username, md5pass);
-		do_md5((unsigned char*)usermd5pass, md5userpass);
 
 		char sig[35] = {0};
 		char sigBuffer[1024] = {0};
-		sprintf(sigBuffer, "api_key%sauthToken%smethodauth.getMobileSessionusername%s%s", apiKey, md5userpass, username, secret);
+		sprintf(sigBuffer, "api_key%s"
+			"methodauth.getMobileSessionpassword%susername%s%s",
+		 apiKey,password, username, secret);
+
 		do_md5((unsigned char*)sigBuffer, sig);
 
 		char request[2048];
-		sprintf(request, "POST /2.0/?method=auth.getMobileSession&api_key=%s&username=%s&authToken=%s&api_sig=%s HTTP/1.1\r\n", 
-			apiKey, username, md5userpass, sig);
+		sprintf(request, "POST /2.0/?method=auth.getMobileSession&api_key=%s"
+			"&username=%s&password=%s&api_sig=%s HTTP/1.1\r\n", 
+			apiKey, username, password, sig);
 
 		char buf[4096] = {0};
 		GetPostRequest(request,"\0", buf);
@@ -168,65 +166,103 @@ void LastFM_Authenticate(char *username, char *password){
 
 		char result[2048];
 		SSL_read(ssl, result, 1024);
+	    
+	    FILE *fp = fopen("log.txt","w");
+	    fwrite(result, 1, strlen(result), fp);
+	    fclose(fp);
 
 		XML_GetStrBetweenTags("name",result,usersLastFM.name);
 		XML_GetStrBetweenTags("key",result,usersLastFM.key);
+
+		if(strlen(usersLastFM.key) > 0)
+			authenticated = 1;
+
 
 		SSL_shutdown(ssl);
 		SSL_free(ssl);
 		SSL_CTX_free(ctx);
 	}
-
-	if(strlen(usersLastFM.key) > 0)
-		authenticated = 1;
 }
 
 void LastFM_ScrobbleTrack(SongInfo song, time_t startedTime){
 
 	if(!authenticated) return;
-	
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
-	if(connect(sock, lastfmAddr->ai_addr, lastfmAddr->ai_addrlen) == 0){
 
-		char trackName[2048];
-		char trackArtist[2048];
+	int sockssl = socket(AF_INET, SOCK_STREAM, 0);
+	if(connect(sockssl, lastfmAddr->ai_addr, lastfmAddr->ai_addrlen) == 0){
+
+		char trackName[128];
+		char trackArtist[128];
 		HTML_EscapeStr(song.title, trackName);
 		HTML_EscapeStr(song.artist, trackArtist);
 
-		char timestamp[10];
+		char timestamp[32];
 		sprintf(timestamp, "%i", (int)startedTime);
 
-
-		char sig[33] = {0};
+		char sig[35] = {0};
 		char sigBuffer[1024] = {0};
-		sprintf(sigBuffer, "api_key%sartist%smethodtrack.scrobblesk%stimestamp%strack%s%s", 
-			apiKey, song.artist, usersLastFM.key, timestamp, song.title, secret);
-		
+		// sprintf(sigBuffer, "api_key%sartist%s"
+		// 	"methodtrack.lovesk%strack%s%s",
+		//  apiKey, song.artist,usersLastFM.key, song.title, secret);
+		sprintf(sigBuffer, "api_key%sartist%s"
+			"methodtrack.scrobblesk%stimestamp%strack%s%s",
+		 apiKey, song.artist,usersLastFM.key, timestamp, song.title, secret);
+
 		do_md5((unsigned char*)sigBuffer, sig);
 
 		char request[2048];
-		sprintf(request, "POST /2.0/?method=track.scrobble&track=%s&artist=%s&api_key=%s&api_sig=%s&sk=%s&timestamp=%s HTTP/1.1\r\n", 
-			trackName, trackArtist, apiKey, sig, usersLastFM.key, timestamp);
+		sprintf(request, "POST /2.0/?method=track.scrobble&api_key=%s"
+			"&track=%s&artist=%s&sk=%s&timestamp=%s&api_sig=%s HTTP/1.1\r\n", 
+			apiKey, trackName, trackArtist,usersLastFM.key, timestamp, sig);
+		// sprintf(request, "POST /2.0/?method=track.love&api_key=%s"
+		// 	"&track=%s&artist=%s&sk=%s&api_sig=%s HTTP/1.1\r\n", 
+		// 	apiKey, trackName, trackArtist,usersLastFM.key, sig);
 
-		char data[1024] = {0};
-		sprintf(data, "sk=%s", usersLastFM.key );
+		char buf[4096] = {0};
+		GetPostRequest(request,"\0", buf);
 
-		char toSend[4096];
-		GetPostRequest(request, data, toSend);
-		send(sock, toSend, strlen(toSend), 0);
+	    FILE *fp = fopen("log.txt","w");
+	    fwrite(buf, 1, strlen(buf), fp);
+	    fclose(fp);
+
+		if(send(sockssl, buf, strlen(buf),0) <= 0){
+		    FILE *fp = fopen("log.txt","w");
+		    fwrite("error", 1, strlen("error"), fp);
+		    fclose(fp);
+		}
+
+		char result[2048];
+		if(recv(sockssl, result, 1024,0) > 0){
+
+			FILE *fp = fopen("log1.txt","w");
+			fwrite(result, 1, strlen(result), fp);
+			fclose(fp);
+		}
+
+		// SSL_shutdown(ssl);
+		// SSL_free(ssl);
+		// SSL_CTX_free(ctx);
+		close(sockssl);
 	}
 }
 
 void LastFM_Init(){
 	struct addrinfo hints;
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = 0;
 	hints.ai_protocol = 0;
 	getaddrinfo("ws.audioscrobbler.com", "80", &hints, &lastfmAddr );
 	getaddrinfo("ws.audioscrobbler.com", "443", &hints, &lastfmAddrHttps );
 	initualized = 1;
+
+		FILE *fp = fopen("log.txt","w");
+		fclose(fp);
+		fp = fopen("log1.txt","w");
+		fclose(fp);
+
+
 }
 
 void LastFM_Close(){

@@ -1,7 +1,7 @@
-#include <lua50/lua.h>
+#include <lua.h>
 #include <string.h>
-#include <lua50/lualib.h>
-#include <lua50/lauxlib.h>
+#include <lualib.h>
+#include <lauxlib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "ui.h"
@@ -9,7 +9,7 @@
 #include "lastfm.h"
 #include "browser_win.h"
 
-lua_State *L;
+static lua_State *L;
 
 char browserCmd[1024] = "firefox";
 
@@ -68,8 +68,8 @@ char *Config_GetBrowserCmd(){
 }
 
 void Config_Load(const char *path){
-	L = lua_open();
-	lua_baselibopen(L);
+	L = luaL_newstate();
+	luaopen_base(L);
 	luaopen_string(L);
 	luaopen_io(L);
 	luaopen_table(L);
@@ -145,6 +145,6 @@ void Config_Load(const char *path){
 	lua_setglobal(L, "GLOBAL_ALT_KEY");
 	lua_pushnumber(L, X11_SUPER_KEY);
 	lua_setglobal(L, "GLOBAL_SUPER_KEY");
-	lua_dofile(L, path);
+	luaL_dofile(L, path);
 	lua_close(L);
 }

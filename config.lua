@@ -37,6 +37,6 @@
 -- SetColorPair(TITLE_COLOR_PAIR, -1, COLOR_BLUE)
 -- SetHotkey(PAUSE_KEY, string.byte("p", 1))
 
-SetStartDirectory("/home/yuki/Music")
--- UseLastFM(1, "murf", "password")
+SetStartDirectory("/home/toga")
+UseLastFM(1, "togahimikoluv", "pass")
 SetGlobalKey(GLOBAL_ALT_KEY)
